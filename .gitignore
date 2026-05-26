@@ -9,6 +9,7 @@ __pycache__/
 *.py[cod]
 *.pyd
 *.pyo
+*.db
 .python-version
 .venv/
 venv/
