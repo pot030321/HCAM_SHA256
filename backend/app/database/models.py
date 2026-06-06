@@ -31,3 +31,19 @@ class VerificationLog(Base):
     changed_blocks_json = Column(Text, nullable=False)
     note = Column(Text, nullable=False)
     created_at = Column(Text, nullable=False)
+
+
+class SecurityEvent(Base):
+    __tablename__ = "security_events"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    category = Column(Text, nullable=False)
+    event_type = Column(Text, nullable=False)
+    severity = Column(Text, nullable=False)
+    file_id = Column(Integer, nullable=True)
+    file_name = Column(Text, nullable=True)
+    actor = Column(Text, nullable=False)
+    source = Column(Text, nullable=True)
+    note = Column(Text, nullable=False)
+    metadata_json = Column(Text, nullable=False)
+    created_at = Column(Text, nullable=False)

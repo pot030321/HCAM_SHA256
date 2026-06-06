@@ -1,5 +1,5 @@
-import { AlertTriangle, Database, FileCheck, FileText, ShieldAlert } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { FileText } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { getApiError } from '../api/axiosClient';
 import { getFileDetail } from '../api/fileApi';
 import { Card } from '../components/common/Card';
@@ -8,28 +8,16 @@ import { HashDisplay } from '../components/common/HashDisplay';
 import { InfoRow } from '../components/common/InfoRow';
 import { MetricCard } from '../components/dashboard/MetricCard';
 import { FileTable } from '../components/tables/FileTable';
-import { LogTable } from '../components/tables/LogTable';
-import type { FileDetail, FileMetadata, VerificationLog } from '../types';
+import type { FileDetail, FileMetadata } from '../types';
 
 interface ServerDashboardProps {
   files: FileMetadata[];
-  logs: VerificationLog[];
 }
 
-export function ServerDashboard({ files, logs }: ServerDashboardProps) {
+export function ServerDashboard({ files }: ServerDashboardProps) {
   const [selectedId, setSelectedId] = useState<number | null>(files[0]?.id || null);
   const [detail, setDetail] = useState<FileDetail | null>(null);
   const [error, setError] = useState('');
-
-  const metrics = useMemo(() => {
-    return {
-      totalFiles: files.length,
-      totalLogs: logs.length,
-      valid: logs.filter((log) => log.result === 'VALID').length,
-      modified: logs.filter((log) => log.result === 'MODIFIED').length,
-      forged: logs.filter((log) => log.result === 'FORGED').length,
-    };
-  }, [files, logs]);
 
   useEffect(() => {
     async function loadDetail() {
@@ -57,38 +45,35 @@ export function ServerDashboard({ files, logs }: ServerDashboardProps) {
   return (
     <div className="space-y-6">
       {error && <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">{error}</div>}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <MetricCard label="Files" value={metrics.totalFiles} icon={<FileText className="h-5 w-5" />} />
-        <MetricCard label="Logs" value={metrics.totalLogs} icon={<Database className="h-5 w-5" />} />
-        <MetricCard label="Valid" value={metrics.valid} icon={<FileCheck className="h-5 w-5" />} />
-        <MetricCard label="Modified" value={metrics.modified} icon={<AlertTriangle className="h-5 w-5" />} />
-        <MetricCard label="Forged" value={metrics.forged} icon={<ShieldAlert className="h-5 w-5" />} />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="File goc" value={files.length} icon={<FileText className="h-5 w-5" />} />
       </div>
 
-      <Card title="Registered Files" subtitle="Click a row to inspect full metadata and block hashes.">
+      <Card title="File da dang ky" subtitle="May chu chi luu ho so hash cua file goc. Khong hien log tan cong o day.">
         <FileTable files={files} selectedId={selectedId} onSelect={setSelectedId} />
       </Card>
 
-      <Card title="File Detail Panel">
+      <Card title="Chi tiet ho so hash">
         {!detail ? (
-          <EmptyState title="No file selected" message="Register or select a file to inspect stored integrity metadata." />
+          <EmptyState title="Chua chon file" message="Dang ky hoac chon mot file de xem metadata." />
         ) : (
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div>
                 <InfoRow label="File ID" value={detail.id} />
-                <InfoRow label="Name" value={detail.original_name} />
-                <InfoRow label="Size" value={`${detail.file_size} bytes`} />
-                <InfoRow label="Created" value={detail.created_at} />
+                <InfoRow label="Ten file" value={detail.original_name} />
+                <InfoRow label="Kich thuoc" value={`${detail.file_size} bytes`} />
+                <InfoRow label="Thoi diem tao" value={detail.created_at} />
               </div>
               <div className="space-y-3">
-                <HashDisplay label="Full SHA-256" value={detail.sha256} />
-                <HashDisplay label="Full Merkle Root" value={detail.merkle_root} />
-                <HashDisplay label="Full HMAC-SHA256" value={detail.hmac_sha256} />
+                <HashDisplay label="SHA-256" value={detail.sha256} />
+                <HashDisplay label="Merkle Root" value={detail.merkle_root} />
+                <HashDisplay label="HMAC-SHA256" value={detail.hmac_sha256} />
               </div>
             </div>
             <div>
-              <h3 className="mb-2 text-sm font-bold">Block Hashes</h3>
+              <h3 className="mb-2 text-sm font-bold">Hash tung block</h3>
               <div className="max-h-72 overflow-auto rounded-md border border-line bg-slate-50 p-3">
                 {detail.block_hashes.map((hash, index) => (
                   <div key={`${index}-${hash}`} className="mb-2 grid grid-cols-[4rem_1fr] gap-3 text-xs last:mb-0">
@@ -100,10 +85,6 @@ export function ServerDashboard({ files, logs }: ServerDashboardProps) {
             </div>
           </div>
         )}
-      </Card>
-
-      <Card title="Verification Logs">
-        <LogTable logs={logs} />
       </Card>
     </div>
   );

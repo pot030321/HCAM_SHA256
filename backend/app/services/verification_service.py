@@ -17,6 +17,7 @@ from app.services.merkle_service import (
     compare_block_hashes,
     split_into_blocks,
 )
+from app.services.security_log_service import create_security_event
 
 
 def _current_time() -> str:
@@ -74,6 +75,17 @@ def verify_uploaded_file(db: Session, file_id: int, upload_file: UploadFile) -> 
     if file_record is None:
         note = "No registered file exists for this file id."
         _save_log(db, file_id, upload_file.filename or "unknown", "UNKNOWN", None, None, None, None, [], note)
+        create_security_event(
+            db,
+            category="verification",
+            event_type="VERIFY_UNKNOWN_FILE_ID",
+            severity="MEDIUM",
+            file_id=file_id,
+            file_name=upload_file.filename or "unknown",
+            actor="user",
+            note=note,
+            metadata={"changed_blocks": 0},
+        )
         return {
             "result": "UNKNOWN",
             "old_sha256": None,
@@ -91,9 +103,144 @@ def verify_uploaded_file(db: Session, file_id: int, upload_file: UploadFile) -> 
     if file_record.sha256 == analysis["sha256"] and file_record.merkle_root == analysis["merkle_root"]:
         result = "VALID"
         note = "File content matches the registered SHA-256 and Merkle Root."
+        create_security_event(
+            db,
+            category="verification",
+            event_type="VERIFY_VALID",
+            severity="LOW",
+            file_id=file_record.id,
+            file_name=file_record.original_name,
+            actor="user",
+            note=note,
+            metadata={"changed_blocks": 0},
+        )
     else:
         result = "MODIFIED"
         note = "File content changed. The file name is not trusted; verification uses file bytes."
+        create_security_event(
+            db,
+            category="verification",
+            event_type="VERIFY_MODIFIED",
+            severity="HIGH",
+            file_id=file_record.id,
+            file_name=file_record.original_name,
+            actor="user",
+            note=note,
+            metadata={"changed_blocks": changed_blocks},
+        )
+
+    _save_log(
+        db,
+        file_record.id,
+        file_record.original_name,
+        result,
+        file_record.sha256,
+        analysis["sha256"],
+        file_record.merkle_root,
+        analysis["merkle_root"],
+        changed_blocks,
+        note,
+    )
+
+    return {
+        "result": result,
+        "old_sha256": file_record.sha256,
+        "new_sha256": analysis["sha256"],
+        "old_merkle_root": file_record.merkle_root,
+        "new_merkle_root": analysis["merkle_root"],
+        "changed_blocks": changed_blocks,
+        "note": note,
+    }
+
+
+def verify_attacker_copy(db: Session, file_id: int, attacker_file_path: str) -> dict:
+    requested_path = Path(attacker_file_path)
+    resolved_path = requested_path.resolve()
+    attacker_root = ATTACKER_DIR.resolve()
+
+    if not resolved_path.is_file() or attacker_root not in resolved_path.parents:
+        note = "Attacker copy is missing or outside the allowed attacker storage directory."
+        _save_log(db, file_id, requested_path.name or "attacker_copy", "UNKNOWN", None, None, None, None, [], note)
+        create_security_event(
+            db,
+            category="verification",
+            event_type="VERIFY_ATTACKER_COPY_INVALID_PATH",
+            severity="HIGH",
+            file_id=file_id,
+            file_name=requested_path.name or "attacker_copy",
+            actor="user",
+            note=note,
+            metadata={"attacker_file_path": attacker_file_path},
+        )
+        return {
+            "result": "UNKNOWN",
+            "old_sha256": None,
+            "new_sha256": None,
+            "old_merkle_root": None,
+            "new_merkle_root": None,
+            "changed_blocks": [],
+            "note": note,
+        }
+
+    with open(resolved_path, "rb") as input_file:
+        file_bytes = input_file.read()
+
+    return _verify_file_bytes(db, file_id, resolved_path.name, file_bytes, "attacker_copy")
+
+
+def _verify_file_bytes(db: Session, file_id: int, submitted_name: str, file_bytes: bytes, actor: str) -> dict:
+    file_record = get_file_by_id(db, file_id)
+
+    if file_record is None:
+        note = "No registered file exists for this file id."
+        _save_log(db, file_id, submitted_name or "unknown", "UNKNOWN", None, None, None, None, [], note)
+        create_security_event(
+            db,
+            category="verification",
+            event_type="VERIFY_UNKNOWN_FILE_ID",
+            severity="MEDIUM",
+            file_id=file_id,
+            file_name=submitted_name or "unknown",
+            actor=actor,
+            note=note,
+            metadata={"changed_blocks": 0},
+        )
+        return {
+            "result": "UNKNOWN",
+            "old_sha256": None,
+            "new_sha256": None,
+            "old_merkle_root": None,
+            "new_merkle_root": None,
+            "changed_blocks": [],
+            "note": note,
+        }
+
+    analysis = _analyze_file_bytes(file_bytes)
+    old_block_hashes = get_block_hashes(file_record)
+    changed_blocks = compare_block_hashes(old_block_hashes, analysis["block_hashes"])
+
+    if file_record.sha256 == analysis["sha256"] and file_record.merkle_root == analysis["merkle_root"]:
+        result = "VALID"
+        note = "File content matches the registered SHA-256 and Merkle Root."
+        event_type = "VERIFY_VALID"
+        severity = "LOW"
+    else:
+        result = "MODIFIED"
+        note = "File content changed. The file name is not trusted; verification uses file bytes."
+        event_type = "VERIFY_MODIFIED"
+        severity = "HIGH"
+
+    create_security_event(
+        db,
+        category="verification",
+        event_type=event_type,
+        severity=severity,
+        file_id=file_record.id,
+        file_name=file_record.original_name,
+        actor=actor,
+        note=note,
+        metadata={"changed_blocks": changed_blocks},
+    )
 
     _save_log(
         db,
@@ -134,11 +281,35 @@ def _copy_original_for_attack(file_record: FileRecord, suffix: str) -> Path | No
 def simulate_modify_byte(db: Session, file_id: int) -> dict:
     file_record = get_file_by_id(db, file_id)
     if file_record is None:
-        return _unknown_attack_result()
+        result = _unknown_attack_result()
+        create_security_event(
+            db,
+            category="attack",
+            event_type="ATTACK_MODIFY_BYTE_UNKNOWN_FILE",
+            severity="MEDIUM",
+            file_id=file_id,
+            file_name=None,
+            actor="attacker",
+            note=result["note"],
+            metadata={"attack": "modify_byte"},
+        )
+        return result
 
     attacker_path = _copy_original_for_attack(file_record, "modify_byte")
     if attacker_path is None:
-        return _missing_original_result(file_record)
+        result = _missing_original_result(file_record)
+        create_security_event(
+            db,
+            category="attack",
+            event_type="ATTACK_MODIFY_BYTE_SOURCE_MISSING",
+            severity="HIGH",
+            file_id=file_record.id,
+            file_name=file_record.original_name,
+            actor="attacker",
+            note=result["note"],
+            metadata={"attack": "modify_byte"},
+        )
+        return result
 
     with open(attacker_path, "rb") as input_file:
         file_bytes = bytearray(input_file.read())
@@ -151,17 +322,65 @@ def simulate_modify_byte(db: Session, file_id: int) -> dict:
     with open(attacker_path, "wb") as output_file:
         output_file.write(file_bytes)
 
-    return _build_attack_result(file_record, bytes(file_bytes), attacker_path, "MODIFIED")
+    result = _build_attack_result(file_record, bytes(file_bytes), attacker_path, "MODIFIED")
+    _save_log(
+        db,
+        file_record.id,
+        file_record.original_name,
+        "MODIFIED",
+        file_record.sha256,
+        result["attacker_sha256"],
+        file_record.merkle_root,
+        result["attacker_merkle_root"],
+        result["changed_blocks"],
+        "Attacker simulation: modified one byte in copied file.",
+    )
+    create_security_event(
+        db,
+        category="attack",
+        event_type="ATTACK_MODIFY_BYTE",
+        severity="HIGH",
+        file_id=file_record.id,
+        file_name=file_record.original_name,
+        actor="attacker",
+        note="Attacker modified one byte. Integrity checks detect tampering.",
+        metadata={"changed_blocks": result["changed_blocks"], "attacker_file_path": result["attacker_file_path"]},
+    )
+    return result
 
 
 def simulate_append_text(db: Session, file_id: int, text: str) -> dict:
     file_record = get_file_by_id(db, file_id)
     if file_record is None:
-        return _unknown_attack_result()
+        result = _unknown_attack_result()
+        create_security_event(
+            db,
+            category="attack",
+            event_type="ATTACK_APPEND_TEXT_UNKNOWN_FILE",
+            severity="MEDIUM",
+            file_id=file_id,
+            file_name=None,
+            actor="attacker",
+            note=result["note"],
+            metadata={"attack": "append_text"},
+        )
+        return result
 
     attacker_path = _copy_original_for_attack(file_record, "append_text")
     if attacker_path is None:
-        return _missing_original_result(file_record)
+        result = _missing_original_result(file_record)
+        create_security_event(
+            db,
+            category="attack",
+            event_type="ATTACK_APPEND_TEXT_SOURCE_MISSING",
+            severity="HIGH",
+            file_id=file_record.id,
+            file_name=file_record.original_name,
+            actor="attacker",
+            note=result["note"],
+            metadata={"attack": "append_text"},
+        )
+        return result
 
     with open(attacker_path, "ab") as output_file:
         output_file.write(text.encode("utf-8"))
@@ -169,17 +388,65 @@ def simulate_append_text(db: Session, file_id: int, text: str) -> dict:
     with open(attacker_path, "rb") as input_file:
         file_bytes = input_file.read()
 
-    return _build_attack_result(file_record, file_bytes, attacker_path, "MODIFIED")
+    result = _build_attack_result(file_record, file_bytes, attacker_path, "MODIFIED")
+    _save_log(
+        db,
+        file_record.id,
+        file_record.original_name,
+        "MODIFIED",
+        file_record.sha256,
+        result["attacker_sha256"],
+        file_record.merkle_root,
+        result["attacker_merkle_root"],
+        result["changed_blocks"],
+        "Attacker simulation: appended text to copied file.",
+    )
+    create_security_event(
+        db,
+        category="attack",
+        event_type="ATTACK_APPEND_TEXT",
+        severity="HIGH",
+        file_id=file_record.id,
+        file_name=file_record.original_name,
+        actor="attacker",
+        note="Attacker appended text. Integrity checks detect tampering.",
+        metadata={"changed_blocks": result["changed_blocks"], "attacker_file_path": result["attacker_file_path"]},
+    )
+    return result
 
 
 def simulate_fake_hash(db: Session, file_id: int) -> dict:
     file_record = get_file_by_id(db, file_id)
     if file_record is None:
-        return _unknown_attack_result()
+        result = _unknown_attack_result()
+        create_security_event(
+            db,
+            category="attack",
+            event_type="ATTACK_FAKE_HASH_UNKNOWN_FILE",
+            severity="MEDIUM",
+            file_id=file_id,
+            file_name=None,
+            actor="attacker",
+            note=result["note"],
+            metadata={"attack": "fake_hash"},
+        )
+        return result
 
     original_bytes = read_stored_file(file_record)
     if original_bytes is None:
-        return _missing_original_result(file_record)
+        result = _missing_original_result(file_record)
+        create_security_event(
+            db,
+            category="attack",
+            event_type="ATTACK_FAKE_HASH_SOURCE_MISSING",
+            severity="HIGH",
+            file_id=file_record.id,
+            file_name=file_record.original_name,
+            actor="attacker",
+            note=result["note"],
+            metadata={"attack": "fake_hash"},
+        )
+        return result
 
     attacker_bytes = bytearray(original_bytes)
     if len(attacker_bytes) == 0:
@@ -213,6 +480,17 @@ def simulate_fake_hash(db: Session, file_id: int) -> dict:
         analysis["merkle_root"],
         changed_blocks,
         note,
+    )
+    create_security_event(
+        db,
+        category="attack",
+        event_type="ATTACK_FAKE_HASH",
+        severity="CRITICAL",
+        file_id=file_record.id,
+        file_name=file_record.original_name,
+        actor="attacker",
+        note=note,
+        metadata={"changed_blocks": changed_blocks, "hmac_valid": hmac_valid},
     )
 
     return {

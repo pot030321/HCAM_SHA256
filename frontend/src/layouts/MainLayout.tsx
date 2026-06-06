@@ -1,4 +1,4 @@
-import { BookOpen, Database, Menu, ShieldCheck, Skull, X } from 'lucide-react';
+import { Database, Menu, ShieldCheck, ShieldOff, X } from 'lucide-react';
 import { useState } from 'react';
 import type { PageKey } from '../types';
 
@@ -9,17 +9,21 @@ interface MainLayoutProps {
 }
 
 const navItems = [
-  { key: 'user' as PageKey, label: 'User Dashboard', icon: ShieldCheck },
-  { key: 'server' as PageKey, label: 'Server Dashboard', icon: Database },
-  { key: 'attacker' as PageKey, label: 'Attacker Simulation', icon: Skull },
-  { key: 'theory' as PageKey, label: 'Theory', icon: BookOpen },
+  { key: 'user' as PageKey, label: 'Nguoi dung', icon: ShieldCheck },
+  { key: 'attacker' as PageKey, label: 'Ke tan cong', icon: ShieldOff },
+  { key: 'server' as PageKey, label: 'May chu', icon: Database },
 ];
 
 const titles: Record<PageKey, string> = {
-  user: 'User Dashboard',
-  server: 'Server Dashboard',
-  attacker: 'Attacker Simulation',
-  theory: 'Theory',
+  user: 'Nguoi dung: A dang ky, B kiem tra',
+  attacker: 'Ke tan cong: sua file',
+  server: 'May chu: ho so hash da luu',
+};
+
+const descriptions: Record<PageKey, string> = {
+  user: 'A upload file goc len server. B upload file nhan duoc de kiem tra toan ven.',
+  attacker: 'Chon file goc da dang ky, tao ban bi sua mot byte hoac chen them noi dung.',
+  server: 'Chi xem file da dang ky va metadata SHA-256, Merkle Root, HMAC-SHA256. Khong hien log tan cong.',
 };
 
 export function MainLayout({ activePage, onPageChange, children }: MainLayoutProps) {
@@ -56,8 +60,8 @@ export function MainLayout({ activePage, onPageChange, children }: MainLayoutPro
     <div className="min-h-screen bg-[#edf1f5]">
       <aside className="fixed left-0 top-0 z-20 hidden h-screen w-72 border-r border-line bg-white p-5 lg:block">
         <div className="mb-8">
-          <p className="text-xs font-bold uppercase tracking-wide text-cyan-800">Master InfoSec Demo</p>
-          <h1 className="mt-2 text-xl font-black leading-tight">Document Integrity System</h1>
+          <p className="text-xs font-bold uppercase tracking-wide text-cyan-800">HCAM SHA-256</p>
+          <h1 className="mt-2 text-xl font-black leading-tight">Document Integrity Demo</h1>
         </div>
         {navigation}
       </aside>
@@ -65,14 +69,14 @@ export function MainLayout({ activePage, onPageChange, children }: MainLayoutPro
       <header className="sticky top-0 z-30 border-b border-line bg-white px-4 py-3 lg:hidden">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-cyan-800">InfoSec Demo</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-cyan-800">HCAM SHA-256</p>
             <h1 className="text-base font-black">{titles[activePage]}</h1>
           </div>
           <button
             type="button"
             onClick={() => setMenuOpen(!menuOpen)}
             className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-md border border-line"
-            title="Toggle navigation"
+            title="Toggle menu"
           >
             {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -84,7 +88,7 @@ export function MainLayout({ activePage, onPageChange, children }: MainLayoutPro
         <div className="mx-auto max-w-7xl">
           <div className="mb-6 hidden lg:block">
             <h1 className="text-2xl font-black">{titles[activePage]}</h1>
-            <p className="mt-1 text-sm text-slate-600">SHA-256 integrity, Merkle block detection, and HMAC authenticity in one local demo.</p>
+            <p className="mt-1 text-sm text-slate-600">{descriptions[activePage]}</p>
           </div>
           {children}
         </div>

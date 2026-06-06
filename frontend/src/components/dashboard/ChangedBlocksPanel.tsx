@@ -4,7 +4,7 @@ interface ChangedBlocksPanelProps {
 
 export function ChangedBlocksPanel({ blocks }: ChangedBlocksPanelProps) {
   if (blocks.length === 0) {
-    return <p className="text-sm text-slate-600">No changed blocks detected.</p>;
+    return <p className="text-sm text-slate-600">Không phát hiện block bị thay đổi.</p>;
   }
 
   return (

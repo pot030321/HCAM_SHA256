@@ -8,7 +8,7 @@ interface LogTableProps {
 
 export function LogTable({ logs }: LogTableProps) {
   if (logs.length === 0) {
-    return <EmptyState title="No verification logs" message="Verification and fake-hash checks will appear here." />;
+    return <EmptyState title="Chưa có log xác minh" message="Kết quả xác minh và kiểm tra giả mạo hash sẽ xuất hiện ở đây." />;
   }
 
   return (
@@ -16,11 +16,11 @@ export function LogTable({ logs }: LogTableProps) {
       <table className="min-w-[900px] w-full border-collapse bg-white text-sm">
         <thead className="bg-slate-100 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
           <tr>
-            <th className="px-4 py-3">Time</th>
+            <th className="px-4 py-3">Thời gian</th>
             <th className="px-4 py-3">File</th>
-            <th className="px-4 py-3">Result</th>
-            <th className="px-4 py-3">Changed Blocks</th>
-            <th className="px-4 py-3">Note</th>
+            <th className="px-4 py-3">Kết quả</th>
+            <th className="px-4 py-3">Block đổi</th>
+            <th className="px-4 py-3">Ghi chú</th>
           </tr>
         </thead>
         <tbody>

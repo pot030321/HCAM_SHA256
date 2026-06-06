@@ -13,7 +13,7 @@ function shortHash(value: string) {
 
 export function FileTable({ files, selectedId, onSelect }: FileTableProps) {
   if (files.length === 0) {
-    return <EmptyState title="No registered files" message="Register an original file to create SHA-256, Merkle Root, and HMAC metadata." />;
+    return <EmptyState title="Chưa có file gốc" message="Đăng ký một file gốc để tạo SHA-256, Merkle Root và metadata HMAC." />;
   }
 
   return (
@@ -22,11 +22,11 @@ export function FileTable({ files, selectedId, onSelect }: FileTableProps) {
         <thead className="bg-slate-100 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
           <tr>
             <th className="px-4 py-3">ID</th>
-            <th className="px-4 py-3">File Name</th>
-            <th className="px-4 py-3">Size</th>
+            <th className="px-4 py-3">Tên file</th>
+            <th className="px-4 py-3">Kích thước</th>
             <th className="px-4 py-3">SHA-256</th>
             <th className="px-4 py-3">Merkle Root</th>
-            <th className="px-4 py-3">Created</th>
+            <th className="px-4 py-3">Thời điểm tạo</th>
           </tr>
         </thead>
         <tbody>

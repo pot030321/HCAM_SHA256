@@ -53,3 +53,18 @@ class VerificationLogOut(BaseModel):
     changed_blocks: list[int]
     note: str
     created_at: str
+
+
+class SecurityEventOut(BaseModel):
+    id: int
+    category: str
+    event_type: str
+    severity: str
+    file_id: int | None
+    file_name: str | None
+    actor: str
+    source: str | None
+    note: str
+    metadata: dict
+    created_at: str
+

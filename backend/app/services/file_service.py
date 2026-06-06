@@ -15,6 +15,7 @@ from app.services.merkle_service import (
     calculate_block_hashes,
     split_into_blocks,
 )
+from app.services.security_log_service import create_security_event
 
 
 def _safe_file_name(file_name: str) -> str:
@@ -60,6 +61,19 @@ def register_file(db: Session, upload_file: UploadFile) -> FileRecord:
     db.add(file_record)
     db.commit()
     db.refresh(file_record)
+
+    create_security_event(
+        db,
+        category="registry",
+        event_type="FILE_REGISTERED",
+        severity="LOW",
+        file_id=file_record.id,
+        file_name=file_record.original_name,
+        actor="user",
+        note="New original file registered with SHA-256, Merkle Root, and HMAC-SHA256.",
+        metadata={"file_size": file_size},
+    )
+
     return file_record
 
 
